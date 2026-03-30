@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroODE — Cognitive State Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Epilogue:wght@300;400;600;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.0/Recharts.min.js"></script>
+<style>
+:root {
+  --bg:      #050810;
+  --bg2:     #090d18;
+  --bg3:     #0e1525;
+  --panel:   #0c1220;
+  --panel2:  #111928;
+  --border:  #1a2840;
+  --border2: #243450;
+  --border3: #2e4468;
+
+  --att: #00f0ff;
+  --fat: #ff3d6e;
+  --str: #ffb830;
+
+  --g-att: rgba(0,240,255,.10);
+  --g-fat: rgba(255,61,110,.10);
+  --g-str: rgba(255,184,48,.10);
+
+  --text:  #c8ddf5;
+  --text2: #5d7ea8;
+  --text3: #2e4668;
+  --muted: #3a5575;
+
+  --mono: 'IBM Plex Mono', monospace;
+  --disp: 'Epilogue', sans-serif;
+  --body: 'DM Sans', sans-serif;
+  --r: 8px;
+  --r2: 5px;
+}
+.explain-text {
+  font-size: 12px;
+  color: #8aa3c7;
+  line-height: 1.6;
+  padding: 6px 4px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { overflow-x: hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 13px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.05) 2px, rgba(0,0,0,.05) 4px);
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,240,255,.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.app {
+  position: relative; z-index: 1;
+  max-width: 1380px; margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.logo { display: flex; align-items: center; gap: 14px; }
+
+.logo-mark {
+  width: 44px; height: 44px;
+  border: 1px solid var(--border3); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel); position: relative; overflow: hidden;
+}
+
+.logo-mark::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--g-att), transparent);
+}
+
+.logo-title {
+  font-family: var(--disp); font-size: 22px; font-weight: 800;
+  letter-spacing: -0.03em; color: #fff;
+}
+
+.logo-sub {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text3); letter-spacing: 0.05em; margin-top: 1px;
+}
+
+.arch-trail {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+}
+
+.arch-node {
+  padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--panel); white-space: nowrap;
+  transition: border-color .25s, color .25s;
+}
+
+.arch-node.lit { border-color: var(--att); color: var(--att); }
+.arch-sep { color: var(--text3); }
+
+.status-cluster { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+.status-pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--panel);
+  font-family: var(--mono); font-size: 10px; color: var(--text2);
+}
+
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--att); box-shadow: 0 0 8px var(--att);
+  animation: blink 2.4s ease-in-out infinite;
+}
+
+.status-dot.offline { background: var(--text3); box-shadow: none; animation: none; }
+.status-dot.online  { background: #00e8a0; box-shadow: 0 0 8px #00e8a0; }
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 220px;
+  gap: 14px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  animation: rise .45s ease both;
+}
+
+@keyframes rise { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
+
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel2);
+}
+
+.panel-title {
+  font-family: var(--mono); font-size: 9px; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--text3);
+  display: flex; align-items: center; gap: 7px;
+}
+
+.dot { width: 5px; height: 5px; border-radius: 50%; }
+.panel-body { padding: 14px; }
+
+.col-left  { grid-column: 1; grid-row: 1/4; display: flex; flex-direction: column; gap: 14px; }
+.col-mid   { grid-column: 2; grid-row: 1/4; display: flex; flex-direction: column; gap: 14px; }
+.col-right { grid-column: 3; grid-row: 1/4; display: flex; flex-direction: column; gap: 14px; }
+
+.section-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text3);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+
+.section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+
+.s-pip { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
+.s-name { font-size: 11px; color: var(--text); width: 72px; flex-shrink: 0; }
+.s-track { flex: 1; position: relative; height: 18px; display: flex; align-items: center; }
+
+input[type=range] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  -webkit-appearance: none; appearance: none;
+  background: transparent; cursor: pointer; outline: none; z-index: 2; opacity: 0;
+}
+
+.track-bg {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 100%; height: 3px; border-radius: 2px;
+  background: var(--bg2); border: 1px solid var(--border);
+}
+
+.track-fill {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  height: 3px; border-radius: 2px; transition: width .1s; pointer-events: none; z-index: 1;
+}
+
+.track-thumb {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--bg); border: 2px solid;
+  pointer-events: none; z-index: 3; transition: left .1s;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.s-val {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--text2); width: 28px; text-align: right; flex-shrink: 0;
+}
+
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px;
+  border-radius: var(--r2); border: 1px solid;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .06em; cursor: pointer; transition: all .15s;
+}
+
+.btn-run {
+  background: var(--att); border-color: var(--att); color: #001820;
+  box-shadow: 0 0 20px rgba(0,240,255,.25); margin-bottom: 7px;
+}
+
+.btn-run:hover { box-shadow: 0 0 30px rgba(0,240,255,.45); transform: translateY(-1px); }
+.btn-run:active { transform: translateY(0); }
+.btn-run:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-ghost {
+  background: transparent; border-color: var(--border2); color: var(--text2); margin-bottom: 7px;
+}
+
+.btn-ghost:hover { border-color: var(--border3); color: var(--text); }
+
+.eeg-section { margin-top: 12px; }
+
+.band-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+.band-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em;
+  color: var(--text3); width: 44px; flex-shrink: 0;
+}
+
+.band-bar-track {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: var(--bg2); border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.band-bar-fill {
+  height: 100%; border-radius: 3px; transition: width .3s ease;
+}
+
+.band-val {
+  font-family: var(--mono); font-size: 9px; color: var(--text2);
+  width: 32px; text-align: right; flex-shrink: 0;
+}
+
+.chart-outer {
+  position: relative; height: 280px;
+  background: var(--bg2); border-radius: var(--r2);
+  overflow: hidden;
+}
+
+.chart-outer canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+}
+
+.phase-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+
+.phase-wrap 
+.phase-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  color: var(--text3); margin-bottom: 5px; text-align: center;
+}
+
+.phase-wrap canvas {
+  width: 100%; display: block;
+  border-radius: var(--r2); background: var(--bg2);
+}
+
+.meter-row { margin-bottom: 10px; }
+
+.meter-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.meter-name { font-size: 11px; display: flex; align-items: center; gap: 6px; }
+
+.meter-vals {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  display: flex; gap: 8px; align-items: center;
+}
+
+.meter-delta {
+  font-family: var(--mono); font-size: 9px; color: var(--text3);
+}
+
+.meter-bar-track {
+  height: 5px; border-radius: 3px;
+  background: var(--bg2); border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.meter-bar-fill {
+  height: 100%; border-radius: 3px; transition: width .25s ease;
+}
+
+.perf-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+}
+
+.perf-stat {
+  padding: 8px 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2);
+}
+
+.perf-stat .ps-label {
+  font-family: var(--mono); font-size: 9px; color: var(--text3); margin-bottom: 3px;
+}
+
+.perf-stat .ps-val {
+  font-family: var(--mono); font-size: 15px; font-weight: 600;
+}
+
+.arch-flow {
+  display: flex; flex-direction: column; gap: 6px;
+  font-family: var(--mono); font-size: 9px;
+}
+
+.arch-block {
+  padding: 8px 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2);
+  transition: border-color .3s;
+}
+
+.arch-block.active { border-color: var(--att); }
+.arch-block .ab-title { font-weight: 600; color: var(--text); letter-spacing: .08em; margin-bottom: 2px; }
+.arch-block .ab-sub { color: var(--text3); line-height: 1.4; }
+.arch-arrow { text-align: center; color: var(--text3); font-size: 12px; }
+
+.mse-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2);
+  font-family: var(--mono); font-size: 10px;
+}
+
+.mse-label { color: var(--text3); }
+.mse-val   { color: var(--att); font-weight: 600; }
+
+.ev-item {
+  display: flex; gap: 8px; padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; align-items: flex-start;
+}
+
+.ev-item:last-child { border-bottom: none; }
+.ev-t { font-family: var(--mono); font-size: 9px; color: var(--text3); flex-shrink: 0; min-width: 44px; margin-top: 1px; }
+.ev-dot { width: 5px; height: 5px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.ev-msg { color: var(--text2); line-height: 1.4; }
+
+.event-log { max-height: 180px; overflow-y: auto; }
+.event-log::-webkit-scrollbar { width: 3px; }
+.event-log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.loading-overlay {
+  position: absolute; inset: 0;
+  background: rgba(5,8,16,.8);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r2);
+  font-family: var(--mono); font-size: 11px; color: var(--att);
+  gap: 10px; z-index: 10;
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s;
+}
+
+.loading-overlay.show { opacity: 1; pointer-events: auto; }
+
+.spin {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--border2);
+  border-top-color: var(--att);
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1060px) {
+  .grid { grid-template-columns: 260px 1fr; }
+  .col-right { grid-column: 1/3; grid-row: 4; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+}
+
+@media (max-width: 720px) {
+  .grid { grid-template-columns: 1fr; }
+  .col-left, .col-mid, .col-right { grid-column: 1; }
+  .arch-trail { display: none; }
+}
+/* TOOLTIP */
+.tooltip {
+  position: relative;
+  cursor: help;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 120%;
+  left: 0;
+  background: #0b1220;
+  color: #00f0ff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.2s ease;
+  border: 1px solid rgba(0,240,255,0.2);
+  font-family: var(--mono);
+  z-index: 100;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <circle cx="13" cy="13" r="12" stroke="var(--att)" stroke-width=".8" opacity=".4"/>
+        <path d="M6 13 C6 8,10 5,13 8 C16 11,18 9,20 13 C22 17,18 21,15 18 C12 15,10 17,7 15"
+              stroke="var(--att)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <circle cx="13" cy="13" r="2.5" fill="var(--att)" opacity=".6"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-title">NeuroODE</div>
+      <div class="logo-sub">Cognitive State Dynamics · DEAP EEG · Neural ODE v3</div>
+    </div>
+  </div>
+
+  <div class="arch-trail">
+    <div class="arch-node" id="an-data">DEAP EEG</div>
+    <div class="arch-sep">→</div>
+    <div class="arch-node" id="an-feat">α/θ/β Features</div>
+    <div class="arch-sep">→</div>
+    <div class="arch-node" id="an-ode">Neural ODE</div>
+    <div class="arch-sep">→</div>
+    <div class="arch-node" id="an-traj">S(t) Trajectory</div>
+  </div>
+
+  <div class="status-cluster">
+    <div class="status-pill">
+      <div class="status-dot offline" id="api-dot"></div>
+      <span id="api-label" style="min-width:110px">API OFFLINE</span>
+    </div>
+    <div class="status-pill">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--text3)">MSE</span>
+      <span id="hdr-mse" style="margin-left:4px;color:var(--att);font-weight:600">—</span>
+    </div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- LEFT -->
+  <div class="col-left">
+
+    <div class="panel" style="animation-delay:0s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--att)"></div>Initial State S₀</div>
+      </div>
+      <div class="panel-body">
+        <div class="section-label">Cognitive State  [att · fat · str]</div>
+        <div id="state-sliders"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.06s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>EEG Band Powers  U</div>
+      </div>
+      <div class="panel-body">
+        <div class="section-label">Input Features from DEAP</div>
+        <div id="eeg-sliders"></div>
+        <div class="eeg-section">
+          <div class="section-label">Relative Power</div>
+          <div id="band-bars"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.10s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text3)"></div>Simulation</div>
+      </div>
+      <div class="panel-body">
+        <div class="section-label">Duration · Steps</div>
+        <div id="sim-sliders"></div>
+        <button class="btn btn-run" id="btn-run" onclick="runSimulation()">▶ RUN SIMULATION</button>
+        <button class="btn btn-ghost" onclick="resetAll()">↺ RESET</button>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.14s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>System Architecture</div>
+      </div>
+      <div class="panel-body">
+        <div class="arch-flow">
+          <div class="arch-block" id="ab-data">
+            <div class="ab-title">DEAP DATASET</div>
+            <div class="ab-sub">32-ch EEG · 32 subj · 40 trials<br>Valence / Arousal labels</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block" id="ab-feat">
+            <div class="ab-title">FEATURE EXTRACTION</div>
+            <div class="ab-sub">Welch PSD → α / θ / β power<br>Relative ratios, z-score norm</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block" id="ab-ode">
+            <div class="ab-title">NEURAL ODE</div>
+            <div class="ab-sub">dS/dt = f(S, U, θ)<br>Linear(6→32)→Tanh→Linear(32→32)→Tanh→Linear(32→3)<br>Trained: dopri5 + MSE loss</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block" id="ab-traj">
+            <div class="ab-title">TRAJECTORY S(t)</div>
+            <div class="ab-sub">[attention, fatigue, stress] over time</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CENTER -->
+  <div class="col-mid">
+
+    <div class="panel" style="animation-delay:.04s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--att)"></div>Neural ODE Trajectory — S(t)</div>
+        <div class="card" style="margin-top:12px;">
+  <div class="card-title">• MODEL EXPLANATION</div>
+  <div class="explain-text" id="explain-text">
+    Hover or run simulation to see insights.
+  </div>
+</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:5px">
+            <span style="width:16px;height:2px;background:var(--att);display:inline-block;border-radius:1px"></span>Attention
+          </span>
+          <span style="font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:5px">
+            <span style="width:16px;height:2px;background:var(--fat);display:inline-block;border-radius:1px"></span>Fatigue
+          </span>
+          <span style="font-family:var(--mono);font-size:9px;display:flex;align-items:center;gap:5px">
+            <span style="width:16px;height:2px;background:var(--str);display:inline-block;border-radius:1px"></span>Stress
+          </span>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:10px;position:relative">
+        <div class="chart-outer" id="main-chart-wrap">
+          <div class="loading-overlay" id="main-loading">
+            <div class="spin"></div> Running Neural ODE...
+          </div>
+          <canvas id="mainChart"></canvas>
+        </div>
+        <div style="margin-top:8px" id="mse-row-wrap"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.08s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>Phase Portraits — State Coupling</div>
+      </div>
+      <div class="panel-body">
+        <div class="phase-grid">
+          <div class="phase-wrap">
+            <div class="phase-label">ATTENTION vs FATIGUE</div>
+            <canvas id="ph1" height="120"></canvas>
+          </div>
+          <div class="phase-wrap">
+            <div class="phase-label">STRESS vs FATIGUE</div>
+            <canvas id="ph2" height="120"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.12s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text3)"></div>Event Log</div>
+      </div>
+      <div class="panel-body" style="padding-top:4px">
+        <div class="event-log" id="eventLog"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="col-right">
+
+    <div class="panel" style="animation-delay:.06s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--att)"></div>Live State S(t)</div>
+      </div>
+      <div class="panel-body" id="meters-container"></div>
+    </div>
+
+    <div class="panel" style="animation-delay:.10s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--str)"></div>Performance Estimate</div>
+      </div>
+      <div class="panel-body">
+        <canvas id="perfRing" width="110" height="110" style="display:block;margin:0 auto 8px"></canvas>
+        <div class="perf-grid">
+          <div class="perf-stat">
+            <div class="ps-label">React. Time</div>
+            <div class="ps-val" id="pred-rt" style="color:var(--str)">— ms</div>
+          </div>
+          <div class="perf-stat">
+            <div class="ps-label">Cog. Load</div>
+            <div class="ps-val" id="pred-load" style="color:var(--fat)">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="animation-delay:.14s">
+      <div class="panel-head">
+        <div class="panel-title"><div class="dot" style="background:var(--text3)"></div>Trajectory Stats</div>
+      </div>
+      <div class="panel-body">
+        <div id="traj-stats" style="font-family:var(--mono);font-size:10px;color:var(--text3)">
+          Run a simulation to see trajectory statistics.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const BACKEND = '';
+
+const STATE_SLIDERS = [
+  { key:'attention', name:'Attention', color:'#00f0ff', def:65 },
+  { key:'fatigue',   name:'Fatigue',   color:'#ff3d6e', def:25 },
+  { key:'stress',    name:'Stress',    color:'#ffb830', def:30 },
+];
+
+const EEG_SLIDERS = [
+  { key:'alpha_power', name:'α Alpha', color:'#00e8a0', def:40 },
+  { key:'theta_power', name:'θ Theta', color:'#0099cc', def:30 },
+  { key:'beta_power',  name:'β Beta',  color:'#ffb830', def:25 },
+];
+
+const SIM_SLIDERS = [
+  { key:'duration', name:'Duration', color:'#5d7ea8', def:10, min:1, max:60, unit:'s' },
+  { key:'n_steps',  name:'Steps',    color:'#5d7ea8', def:40, min:8, max:120, unit:'' },
+];
+function getTooltip(key) {
+  const tips = {
+    alpha_power: "Alpha (8–12 Hz): relaxed focus, calm attention",
+    theta_power: "Theta (4–8 Hz): fatigue, drowsiness, low alertness",
+    beta_power:  "Beta (13–30 Hz): stress, alertness, active thinking",
+
+    attention: "Model state: cognitive focus level",
+    fatigue:   "Model state: mental exhaustion level",
+    stress:    "Model state: cognitive stress level",
+
+    duration: "Simulation time (seconds)",
+    n_steps:  "Number of ODE integration steps"
+  };
+  return tips[key] || "";
+}
+let trajectory = [];
+let animFrame  = null;
+let playIdx    = 0;
+let playing    = false;
+
+function buildSlider({ key, name, color, def, min=0, max=100, unit='' }, containerId) {
+  const c = document.getElementById(containerId);
+  const row = document.createElement('div');
+  row.className = 'slider-row';
+  row.innerHTML = `
+    <div class="s-pip" style="color:${color};background:${color}"></div>
+    <div class="s-name tooltip" data-tip="${getTooltip(key)}">${name}</div>
+    <div class="s-track">
+      <input type="range" id="sl-${key}" min="${min}" max="${max}" value="${def}" oninput="syncSlider('${key}','${color}',${min},${max},'${unit}')">
+      <div class="track-bg"></div>
+      <div class="track-fill" id="tf-${key}" style="background:${color}"></div>
+      <div class="track-thumb" id="tt-${key}" style="border-color:${color}"></div>
+    </div>
+    <div class="s-val" id="sv-${key}">${def}${unit}</div>
+  `;
+  c.appendChild(row);
+  syncSlider(key, color, min, max, unit);
+}
+
+function syncSlider(key, color, min, max, unit) {
+  const el  = document.getElementById(`sl-${key}`);
+  const v   = parseFloat(el.value);
+  const pct = ((v - min) / (max - min)) * 100;
+  document.getElementById(`tf-${key}`).style.width = pct + '%';
+  document.getElementById(`tt-${key}`).style.left  = pct + '%';
+  document.getElementById(`sv-${key}`).textContent = v + unit;
+  if (EEG_SLIDERS.find(s => s.key === key)) updateBandBars();
+}
+
+function getSliderVal(id) {
+  const el = document.getElementById(`sl-${id}`);
+  if (!el) return 0;   
+  return parseFloat(el.value);
+}
+
+function buildBandBars() {
+  const c = document.getElementById('band-bars');
+  for (const s of EEG_SLIDERS) {
+    const row = document.createElement('div');
+    row.className = 'band-row';
+    row.innerHTML = `
+      <div class="band-label">${s.name}</div>
+      <div class="band-bar-track">
+        <div class="band-bar-fill" id="bb-${s.key}" style="background:${s.color};width:${s.def}%"></div>
+      </div>
+      <div class="band-val" id="bv-${s.key}">${s.def}%</div>
+    `;
+    c.appendChild(row);
+  }
+}
+
+function updateBandBars() {
+  const a = getSliderVal('alpha_power');
+  const t = getSliderVal('theta_power');
+  const b = getSliderVal('beta_power');
+
+  const total = a + t + b + 1e-10;
+
+  for (const s of EEG_SLIDERS) {
+    const raw = getSliderVal(s.key);
+    const rel = (raw / total * 100).toFixed(1);
+
+    const bar = document.getElementById(`bb-${s.key}`);
+    const val = document.getElementById(`bv-${s.key}`);
+
+    if (!bar || !val) continue;  
+
+    bar.style.width = rel + '%';
+    val.textContent = rel + '%';
+  }
+}
+
+function buildMeters() {
+  const c = document.getElementById('meters-container');
+  for (const s of STATE_SLIDERS) {
+    const d = document.createElement('div');
+    d.className = 'meter-row';
+    d.innerHTML = `
+      <div class="meter-head">
+        <div class="meter-name">
+          <div class="dot" style="background:${s.color};box-shadow:0 0 6px ${s.color}"></div>
+          ${s.name}
+        </div>
+        <div class="meter-vals">
+          <span id="mv-${s.key}" style="color:${s.color}">—</span>
+          <span class="meter-delta" id="md-${s.key}"></span>
+        </div>
+      </div>
+      <div class="meter-bar-track">
+        <div class="meter-bar-fill" id="mb-${s.key}" style="background:${s.color};width:0%"></div>
+      </div>
+    `;
+    c.appendChild(d);
+  }
+}
+
+function updateMeters(point, prevPoint) {
+  if (!point) return;
+  for (const s of STATE_SLIDERS) {
+    const v = point[s.key];
+    const pv = prevPoint ? prevPoint[s.key] : v;
+    const delta = v - pv;
+    document.getElementById(`mv-${s.key}`).textContent = v.toFixed(3);
+    document.getElementById(`mb-${s.key}`).style.width = (v * 100) + '%';
+    const del = document.getElementById(`md-${s.key}`);
+    del.textContent = `Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(3)}`;
+    del.style.color = delta > 0.002 ? '#00e8a0' : delta < -0.002 ? '#ff3d6e' : 'var(--text3)';
+  }
+  const att = point.attention, fat = point.fatigue, str = point.stress;
+  const perf = att * 0.5 + (1 - fat) * 0.3 + (1 - str) * 0.2;
+  const rt   = Math.round(280 + fat * 180 + str * 80 - att * 70);
+  const load = fat * 0.4 + str * 0.4 + (1 - att) * 0.2;
+  document.getElementById('pred-rt').textContent   = rt + ' ms';
+  document.getElementById('pred-load').textContent = load > 0.6 ? 'HIGH' : load > 0.35 ? 'MED' : 'LOW';
+  drawPerfRing(perf);
+}
+
+let mainCanvas, mainCtx;
+let phCtx = [];
+
+function setupCanvases() {
+  mainCanvas = document.getElementById('mainChart');
+  mainCtx    = mainCanvas.getContext('2d');
+  const wrap = document.getElementById('main-chart-wrap');
+  mainCanvas.width  = wrap.offsetWidth;
+  mainCanvas.height = wrap.offsetHeight;
+
+  const ids = ['ph1','ph2'];
+  phCtx = ids.map(id => {
+    const c = document.getElementById(id);
+    c.width  = c.offsetWidth || 200;
+    return c.getContext('2d');
+  });
+}
+
+function drawMainChart() {
+  if (!mainCtx || trajectory.length < 2) return;
+  const W = mainCanvas.width, H = mainCanvas.height;
+  mainCtx.clearRect(0, 0, W, H);
+
+  mainCtx.strokeStyle = 'rgba(26,40,64,.5)';
+  mainCtx.lineWidth   = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * 0.05 + (H * 0.9) * (i / 5);
+    mainCtx.beginPath(); mainCtx.moveTo(40, y); mainCtx.lineTo(W - 10, y); mainCtx.stroke();
+    mainCtx.fillStyle = 'var(--text3)';
+    mainCtx.font = '9px IBM Plex Mono';
+    mainCtx.fillText((1 - i / 5).toFixed(1), 8, y + 3);
+  }
+
+  const configs = [
+    { key:'attention', color:'#00f0ff' },
+    { key:'fatigue',   color:'#ff3d6e' },
+    { key:'stress',    color:'#ffb830' },
+  ];
+
+  const n     = trajectory.length;
+  const xScale = (W - 50) / (n - 1);
+  const xOff   = 40;
+  const yH     = H * 0.9;
+  const yOff   = H * 0.05;
+
+  for (const { key, color } of configs) {
+    mainCtx.beginPath();
+    mainCtx.strokeStyle = color;
+    mainCtx.lineWidth   = 2;
+    mainCtx.shadowColor = color;
+    mainCtx.shadowBlur  = 4;
+
+    for (let i = 0; i < n; i++) {
+      const x = xOff + i * xScale;
+      const y = yOff + yH * (1 - trajectory[i][key]);
+      i === 0 ? mainCtx.moveTo(x, y) : mainCtx.lineTo(x, y);
+    }
+    mainCtx.stroke();
+    mainCtx.shadowBlur = 0;
+  }
+
+  mainCtx.fillStyle = 'rgba(100,180,255,.15)';
+  mainCtx.font      = '9px IBM Plex Mono';
+  mainCtx.fillText('t = ' + trajectory[0].t.toFixed(1) + 's', xOff, H - 6);
+  mainCtx.fillText('t = ' + trajectory[n-1].t.toFixed(1) + 's', W - 48, H - 6);
+}
+
+function drawPhase(ctx, xKey, yKey) {
+  if (!ctx || trajectory.length < 2) return;
+  const c = ctx.canvas;
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const n = trajectory.length;
+  for (let i = 1; i < n; i++) {
+    const t   = i / n;
+    const x1  = trajectory[i-1][xKey] * (W - 16) + 8;
+    const y1  = (1 - trajectory[i-1][yKey]) * (H - 16) + 8;
+    const x2  = trajectory[i][xKey]   * (W - 16) + 8;
+    const y2  = (1 - trajectory[i][yKey])   * (H - 16) + 8;
+    ctx.beginPath();
+    ctx.strokeStyle = `hsla(${180 + t * 100}, 80%, 70%, ${0.3 + t * 0.6})`;
+    ctx.lineWidth   = 1.5;
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  const last = trajectory[n - 1];
+  const lx = last[xKey] * (W - 16) + 8;
+  const ly = (1 - last[yKey]) * (H - 16) + 8;
+  ctx.beginPath();
+  ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#00f0ff';
+  ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 8;
+  ctx.fill(); ctx.shadowBlur = 0;
+}
+
+function drawPerfRing(score) {
+  const c   = document.getElementById('perfRing');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H / 2, r = 42;
+  const start = -Math.PI * 0.75, end = start + Math.PI * 1.5;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, start, end);
+  ctx.strokeStyle = 'rgba(26,40,64,.8)';
+  ctx.lineWidth   = 8; ctx.lineCap = 'round';
+  ctx.stroke();
+
+  const color = score > 0.65 ? '#00e8a0' : score > 0.4 ? '#ffb830' : '#ff3d6e';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, start, start + (end - start) * score);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 8; ctx.lineCap = 'round';
+  ctx.shadowColor = color; ctx.shadowBlur = 12;
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  ctx.fillStyle   = '#fff';
+  ctx.font        = 'bold 18px Epilogue, sans-serif';
+  ctx.textAlign   = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText((score * 100).toFixed(0) + '%', cx, cy);
+  ctx.fillStyle = 'var(--text3)';
+  ctx.font      = '9px IBM Plex Mono';
+  ctx.fillText('PERF', cx, cy + 15);
+}
+
+function addEvent(msg, color = '#3a5575') {
+  const log  = document.getElementById('eventLog');
+  const t    = trajectory.length > 0 ? trajectory[trajectory.length - 1].t.toFixed(1) : '0.0';
+  const item = document.createElement('div');
+  item.className = 'ev-item';
+  item.innerHTML = `
+    <div class="ev-t">t=${t}s</div>
+    <div class="ev-dot" style="background:${color}"></div>
+    <div class="ev-msg">${msg}</div>
+  `;
+  log.insertBefore(item, log.firstChild);
+  while (log.children.length > 20) log.removeChild(log.lastChild);
+}
+
+function litArch(id) {
+  document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('lit'));
+  document.querySelectorAll('.arch-block').forEach(b => b.classList.remove('active'));
+  const nodeMap  = { data:'an-data', feat:'an-feat', ode:'an-ode', traj:'an-traj' };
+  const blockMap = { data:'ab-data', feat:'ab-feat', ode:'ab-ode', traj:'ab-traj' };
+  if (nodeMap[id])  document.getElementById(nodeMap[id])?.classList.add('lit');
+  if (blockMap[id]) document.getElementById(blockMap[id])?.classList.add('active');
+}
+
+function updateTrajStats() {
+  if (trajectory.length < 2) return;
+  const n = trajectory.length;
+  const compute = key => {
+    const vals = trajectory.map(p => p[key]);
+    const mn   = Math.min(...vals), mx = Math.max(...vals);
+    const mu   = vals.reduce((a,b) => a+b, 0) / n;
+    return { min: mn.toFixed(3), max: mx.toFixed(3), mean: mu.toFixed(3) };
+  };
+  const lines = STATE_SLIDERS.map(s => {
+    const { min, max, mean } = compute(s.key);
+    return `<div style="margin-bottom:6px">
+      <span style="color:${s.color}">${s.name.toUpperCase()}</span>
+      &nbsp; μ=${mean} &nbsp; [${min}, ${max}]
+    </div>`;
+  });
+  document.getElementById('traj-stats').innerHTML = lines.join('');
+}
+
+async function checkBackend() {
+  try {
+    const r = await fetch(`${BACKEND}/api/health`, { signal: AbortSignal.timeout(2000) });
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById('api-dot').className = 'status-dot ' + (d.trained ? 'online' : '');
+      document.getElementById('api-label').textContent = d.trained ? 'API ONLINE · MODEL READY' : 'API ONLINE · NOT TRAINED';
+      addEvent('Backend connected · ' + (d.trained ? 'Model ready' : 'Run train.py first'), '#00e8a0');
+    }
+  } catch {
+    document.getElementById('api-label').textContent = 'API OFFLINE';
+    addEvent('Backend offline — run: python api/backend.py', '#ff3d6e');
+  }
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+
+  document.getElementById('main-loading').classList.add('show');
+  litArch('data');
+  await new Promise(r => setTimeout(r, 80));
+  litArch('feat');
+  await new Promise(r => setTimeout(r, 80));
+  litArch('ode');
+
+  const body = {
+    attention:   getSliderVal('attention') / 100,
+    fatigue:     getSliderVal('fatigue')   / 100,
+    stress:      getSliderVal('stress')    / 100,
+    alpha_power: getSliderVal('alpha_power') / 100,
+    theta_power: getSliderVal('theta_power') / 100,
+    beta_power:  getSliderVal('beta_power')  / 100,
+    duration:    getSliderVal('duration'),
+    n_steps:     Math.round(getSliderVal('n_steps')),
+  };
+
+  try {
+    const r = await fetch(`${BACKEND}/api/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    trajectory = data.trajectory;
+    updateExplanation(trajectory, data.mse);
+    litArch('traj');
+
+    document.getElementById('hdr-mse').textContent = data.mse.toFixed(5);
+    document.getElementById('mse-row-wrap').innerHTML = `
+      <div class="mse-row">
+        <span class="mse-label">Trajectory MSE (norm.)</span>
+        <span class="mse-val">${data.mse.toFixed(6)}</span>
+      </div>
+    `;
+
+    drawMainChart();
+    drawPhase(phCtx[0], 'attention', 'fatigue');
+    drawPhase(phCtx[1], 'stress',    'fatigue');
+    updateMeters(trajectory[trajectory.length - 1], trajectory[trajectory.length - 2]);
+    updateTrajStats();
+
+    addEvent(`Trajectory complete · ${data.n_steps} steps`, '#00e8a0');
+
+    const last = trajectory[trajectory.length - 1];
+    if (last.fatigue > 0.70) addEvent('⚠ High fatigue at trajectory end', '#ff3d6e');
+    if (last.stress  > 0.65) addEvent('⚠ Elevated stress detected', '#ffb830');
+    if (last.attention < 0.35) addEvent('⚠ Low attention state', '#00f0ff');
+
+  } catch (err) {
+    addEvent('Error: ' + err.message + ' — is backend running?', '#ff3d6e');
+    document.getElementById('hdr-mse').textContent = 'ERR';
+  }
+
+  document.getElementById('main-loading').classList.remove('show');
+  btn.disabled = false;
+}
+
+function resetAll() {
+  trajectory = [];
+  if (mainCtx) mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+  phCtx.forEach(ctx => ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height));
+  document.getElementById('hdr-mse').textContent = '—';
+  document.getElementById('mse-row-wrap').innerHTML = '';
+  document.getElementById('traj-stats').textContent = 'Run a simulation to see trajectory statistics.';
+  for (const s of STATE_SLIDERS) {
+    document.getElementById('mv-' + s.key).textContent = '—';
+    document.getElementById('mb-' + s.key).style.width = '0%';
+    document.getElementById('md-' + s.key).textContent = '';
+  }
+  document.getElementById('pred-rt').textContent   = '— ms';
+  document.getElementById('pred-load').textContent = '—';
+  const pCtx = document.getElementById('perfRing').getContext('2d');
+  pCtx.clearRect(0, 0, 110, 110);
+  litArch('data');
+  addEvent('State reset', '#5d7ea8');
+}
+
+function init() {
+  STATE_SLIDERS.forEach(s => buildSlider(s, 'state-sliders'));
+  EEG_SLIDERS.forEach(s  => buildSlider({ ...s, min:1, max:99 }, 'eeg-sliders'));
+  SIM_SLIDERS.forEach(s  => buildSlider(s, 'sim-sliders'));
+  buildBandBars();
+  buildMeters();
+  setupCanvases();
+  window.addEventListener('resize', () => { setupCanvases(); drawMainChart(); });
+  litArch('data');
+  addEvent('NeuroODE v3 · DEAP EEG · Neural ODE (torchdiffeq)', '#00e8a0');
+  checkBackend();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+function updateExplanation(traj, mse) {
+  if (!traj || traj.length < 2) return;
+
+  const start = traj[0];
+  const end   = traj[traj.length - 1];
+
+  const dAtt = end.attention - start.attention;
+  const dFat = end.fatigue - start.fatigue;
+  const dStr = end.stress - start.stress;
+
+  let text = "";
+
+  // Attention
+  if (dAtt > 0.05) {
+    text += "• Attention increases → system stabilizes toward focused state.<br>";
+  } else if (dAtt < -0.05) {
+    text += "• Attention decreases → fatigue or distraction dominating.<br>";
+  }
+
+  // Fatigue
+  if (dFat > 0.05) {
+    text += "• Fatigue rising → theta band influence (drowsiness).<br>";
+  } else if (dFat < -0.05) {
+    text += "• Fatigue decreasing → recovery / alertness improving.<br>";
+  }
+
+  // Stress
+  if (dStr > 0.05) {
+    text += "• Stress increasing → beta activity (cognitive load).<br>";
+  } else if (dStr < -0.05) {
+    text += "• Stress decreasing → system relaxing.<br>";
+  }
+
+  // Stability
+  if (Math.abs(dAtt) < 0.03 && Math.abs(dFat) < 0.03) {
+    text += "• System reaches steady-state equilibrium.<br>";
+  }
+
+  // MSE interpretation
+  if (mse < 0.05) {
+    text += "<br>• Very stable dynamics (low variation).";
+  } else if (mse < 0.15) {
+    text += "<br>• Moderate stability in cognitive evolution.";
+  } else {
+    text += "<br>• High variability → system unstable or sensitive.";
+  }
+
+  document.getElementById("explain-text").innerHTML = text;
+}
+</script>
+</body>
+</html>
