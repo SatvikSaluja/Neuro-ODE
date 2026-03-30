@@ -489,75 +489,92 @@ input[type=range] {
 
 <div class="grid">
 
-  <!-- LEFT -->
-  <div class="col-left">
+ <!-- LEFT -->
+<div class="col-left">
 
-    <div class="panel" style="animation-delay:0s">
-      <div class="panel-head">
-        <div class="panel-title"><div class="dot" style="background:var(--att)"></div>Initial State S₀</div>
-      </div>
-      <div class="panel-body">
-        <div class="section-label">Cognitive State  [att · fat · str]</div>
-        <div id="state-sliders"></div>
-      </div>
+  <!-- INITIAL STATE -->
+  <div class="panel" style="animation-delay:0s">
+    <div class="panel-head">
+      <div class="panel-title"><div class="dot" style="background:var(--att)"></div>Initial State S₀</div>
     </div>
-
-    <div class="panel" style="animation-delay:.06s">
-      <div class="panel-head">
-        <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>EEG Band Powers  U</div>
-      </div>
-      <div class="panel-body">
-        <div class="section-label">Input Features from DEAP</div>
-        <div id="eeg-sliders"></div>
-        <div class="eeg-section">
-          <div class="section-label">Relative Power</div>
-          <div id="band-bars"></div>
-        </div>
-      </div>
+    <div class="panel-body">
+      <div class="section-label">Cognitive State  [att · fat · str]</div>
+      <div id="state-sliders"></div>
     </div>
-
-    <div class="panel" style="animation-delay:.10s">
-      <div class="panel-head">
-        <div class="panel-title"><div class="dot" style="background:var(--text3)"></div>Simulation</div>
-      </div>
-      <div class="panel-body">
-        <div class="section-label">Duration · Steps</div>
-        <div id="sim-sliders"></div>
-        <button class="btn btn-run" id="btn-run" onclick="runSimulation()">▶ RUN SIMULATION</button>
-        <button class="btn btn-ghost" onclick="resetAll()">↺ RESET</button>
-      </div>
-    </div>
-
-    <div class="panel" style="animation-delay:.14s">
-      <div class="panel-head">
-        <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>System Architecture</div>
-      </div>
-      <div class="panel-body">
-        <div class="arch-flow">
-          <div class="arch-block" id="ab-data">
-            <div class="ab-title">DEAP DATASET</div>
-            <div class="ab-sub">32-ch EEG · 32 subj · 40 trials<br>Valence / Arousal labels</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-block" id="ab-feat">
-            <div class="ab-title">FEATURE EXTRACTION</div>
-            <div class="ab-sub">Welch PSD → α / θ / β power<br>Relative ratios, z-score norm</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-block" id="ab-ode">
-            <div class="ab-title">NEURAL ODE</div>
-            <div class="ab-sub">dS/dt = f(S, U, θ)<br>Linear(6→32)→Tanh→Linear(32→32)→Tanh→Linear(32→3)<br>Trained: dopri5 + MSE loss</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-block" id="ab-traj">
-            <div class="ab-title">TRAJECTORY S(t)</div>
-            <div class="ab-sub">[attention, fatigue, stress] over time</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
+
+  <!-- 🔥 SIMULATION (MOVED UP) -->
+  <div class="panel" style="animation-delay:.04s">
+    <div class="panel-head">
+      <div class="panel-title"><div class="dot" style="background:var(--text3)"></div>Simulation</div>
+    </div>
+    <div class="panel-body">
+      <div class="section-label">Duration · Steps</div>
+      <div id="sim-sliders"></div>
+
+      <button class="btn btn-run" id="btn-run" onclick="runSimulation()">
+        ▶ RUN SIMULATION
+      </button>
+
+      <button class="btn btn-ghost" onclick="resetAll()">↺ RESET</button>
+    </div>
+  </div>
+
+  <!-- EEG -->
+  <div class="panel" style="animation-delay:.08s">
+    <div class="panel-head">
+      <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>EEG Band Powers  U</div>
+    </div>
+    <div class="panel-body">
+      <div class="section-label">Input Features from DEAP</div>
+      <div id="eeg-sliders"></div>
+
+      <div class="eeg-section">
+        <div class="section-label">Relative Power</div>
+        <div id="band-bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM -->
+  <div class="panel" style="animation-delay:.12s">
+    <div class="panel-head">
+      <div class="panel-title"><div class="dot" style="background:var(--text2)"></div>System Architecture</div>
+    </div>
+    <div class="panel-body">
+      <div class="arch-flow">
+
+        <div class="arch-block" id="ab-data">
+          <div class="ab-title">DEAP DATASET</div>
+          <div class="ab-sub">32-ch EEG · 32 subj · 40 trials<br>Valence / Arousal labels</div>
+        </div>
+
+        <div class="arch-arrow">↓</div>
+
+        <div class="arch-block" id="ab-feat">
+          <div class="ab-title">FEATURE EXTRACTION</div>
+          <div class="ab-sub">Welch PSD → α / θ / β power<br>Relative ratios, z-score norm</div>
+        </div>
+
+        <div class="arch-arrow">↓</div>
+
+        <div class="arch-block" id="ab-ode">
+          <div class="ab-title">NEURAL ODE</div>
+          <div class="ab-sub">dS/dt = f(S, U, θ)<br>Linear(6→32)→Tanh→Linear(32→32)→Tanh→Linear(32→3)<br>Trained: dopri5 + MSE loss</div>
+        </div>
+
+        <div class="arch-arrow">↓</div>
+
+        <div class="arch-block" id="ab-traj">
+          <div class="ab-title">TRAJECTORY S(t)</div>
+          <div class="ab-sub">[attention, fatigue, stress] over time</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
 
   <!-- CENTER -->
   <div class="col-mid">
